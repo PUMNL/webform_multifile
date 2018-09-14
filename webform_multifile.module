@@ -63,6 +63,18 @@ function webform_multifile_delete($webform, $submission, $component_id, $fid) {
 }
 
 /**
+ * Implements hook_permission().
+ */
+function webform_multifile_permission() {
+  return array(
+    'access uploaded webform multifiles' => array(
+      'title' => t('Access all uploaded multifiles'),
+      'description' => t('Grants access to download uploaded multifiles.'),
+    ),
+  );
+}
+
+/**
  * Implements hook_file_download().
  */
 function webform_multifile_file_download($uri) {
@@ -71,7 +83,7 @@ function webform_multifile_file_download($uri) {
   // information, plus the user id of the uploader.
   $target_document = db_select('file_managed', 'fm')->fields('fm')->condition('uri', $uri)->execute()->fetchObject();
   $q = db_select('webform_submitted_data', 'wsd');
-  $q->join('webform_component', 'wc', 'wsd.cid = wc.cid');
+  $q->join('webform_component', 'wc', 'wsd.cid = wc.cid AND wsd.nid = wc.nid');
   $multifile_scan = $q->fields('wsd')->condition('wc.type', 'multifile', '=')->execute();
   $submission_id = $submission_uid = NULL;
   while($multifile_row = $multifile_scan->fetchAssoc()) {
@@ -87,7 +99,7 @@ function webform_multifile_file_download($uri) {
   if ($target_document && $submission_uid) {
     // Allow file access for admins, or for users who are viewing their own
     // submissions.
-    if (user_access('access all webform results') || ($user->uid == $submission_uid->uid && user_access('access own webform results'))) {
+    if (user_access('access all webform results') || ($user->uid == $submission_uid->uid && user_access('access own webform results')) || user_access('access uploaded webform multifiles')) {
       return file_get_content_headers($target_document);
     }
     // This is a webform-controlled file, but the user doesn't have access.
