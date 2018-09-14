@@ -88,9 +88,11 @@ function webform_multifile_file_download($uri) {
   $submission_id = $submission_uid = NULL;
   while($multifile_row = $multifile_scan->fetchAssoc()) {
   	$file_ids = unserialize($multifile_row['data']);
-  	if (in_array($target_document->fid, $file_ids) ) {
-  		$submission_id = $multifile_row['sid'];
-  	}
+  	if ($file_ids && is_array($file_ids)) {
+      if (in_array($target_document->fid, $file_ids)) {
+        $submission_id = $multifile_row['sid'];
+      }
+    }
   }
   if ($submission_id) {
     $submission_uid = db_select('webform_submissions', 'ws')->fields('ws', array('uid'))->condition('sid', $submission_id, '=')->execute()->fetchObject();
