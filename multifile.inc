@@ -342,9 +342,7 @@ function theme_webform_edit_multifile($variables) {
  * Implementation of _webform_render_component().
  */
 function _webform_render_multifile($component, $value = NULL, $filter = TRUE) {
-  drupal_add_js(drupal_get_path('module', 'webform_multifile') .'/multifile/jquery.MultiFile.js');
-  drupal_add_js(drupal_get_path('module', 'webform_multifile') .'/webform_multifile.js', array('scope' => 'footer'));
-  $id = 'MultiFile-identifier-'. str_replace('_', '-', $component['form_key']);
+  $id = 'MultiFile-identifier-' . str_replace('_', '-', $component['form_key']);
   $component['extra']['attributes']['class'][] = 'form-item multi ' . $id;
 
   $node = node_load($component['nid']);
@@ -352,6 +350,7 @@ function _webform_render_multifile($component, $value = NULL, $filter = TRUE) {
   $current_types = isset($component['extra']['filtering']['types']) ? $component['extra']['filtering']['types'] : array();
   $element[$form_key] = array(
     '#type' => 'file',
+    '#translatable' => array('title', 'description'),
     '#title' => $filter ? _webform_filter_xss($component['name']) : $component['name'],
     '#title_display' => $component['extra']['title_display'] ? $component['extra']['title_display'] : 'before',
     //'#required' => $component['mandatory'], // Drupal core bug with required file uploads.
@@ -361,16 +360,18 @@ function _webform_render_multifile($component, $value = NULL, $filter = TRUE) {
     '#suffix' => "<div class='outer'><div class='inner'></div></div>",
     "#attached" => array(
       'js' => array(
+        drupal_get_path('module', 'webform_multifile') . '/multifile/jquery.MultiFile.js' => array('type' => 'file'),
+        drupal_get_path('module', 'webform_multifile') . '/webform_multifile.js' => array('type' => 'file', 'scope' => 'footer'),
         "(function ($) { \n" .
         // Stores all the settings for each field in an array so the javascript files can load later
-        "  if (typeof MultiFile_fields == 'undefined') {MultiFile_fields = []} \n".
-        "  MultiFile_fields.push(\n  {\n    id :'$id',\n    properties : {\n".
+        "  if (typeof MultiFile_fields == 'undefined') {MultiFile_fields = []} \n" .
+        "  MultiFile_fields.push(\n  {\n    id :'$id',\n    properties : {\n" .
           "        max:" . $component['extra']['max_amount'] . ",\n" .
-          "        accept:'" . join('|', $current_types) . "',\n        STRING: {\n".
-          "          remove:'" . t('Remove') . "',\n".
-          "          denied:'" . t('You are kindly asked not to submit !ext files in this form.', array('!ext' => '$ext')) . "',\n".
-          "          duplicate:'" . t('The file !file has already been selected and will be uploaded once you submit this form.', array('!file' => '$file')) . "'\n".
-          "        }\n".
+          "        accept:'" . join('|', $current_types) . "',\n        STRING: {\n" .
+          "          remove:'" . t('Remove') . "',\n" .
+          "          denied:'" . t('You are kindly asked not to submit !ext files in this form.', array('!ext' => '$ext')) . "',\n" .
+          "          duplicate:'" . t('The file !file has already been selected and will be uploaded once you submit this form.', array('!file' => '$file')) . "'\n" .
+          "        }\n" .
         "      }\n    }\n  );\n}) (jQuery);" => array('type' => 'inline'),
       )
     ),
@@ -422,7 +423,7 @@ function theme_webform_render_multifile($variables) {
   $webform_nid = $element['#webform_component']['nid'];
   $component_id = $element['#webform_component']['cid'];
   $submission_id = arg(3);
-  if ($fids = unserialize($value)) {
+  if ($fids = drupal_json_decode($value)) {
     $suffix = '';
     foreach (webform_get_multifile($fids) as $file) {
       $suffix .= '<div class="multifile-file"> ';
@@ -512,6 +513,7 @@ function _webform_validate_multifile(&$element, &$form_state) {
   }
 
   foreach ($_FILES['files']['name'][$form_key] as $key => $filename) {
+    $filename = _webform_multifile_get_files_array_value($filename, $form_key);
     $dot = strrpos($filename, '.');
     $extension = drupal_strtolower(drupal_substr($filename, $dot + 1));
     $file_error = FALSE;
@@ -521,6 +523,7 @@ function _webform_validate_multifile(&$element, &$form_state) {
     }
   }
   foreach ($_FILES['files']['size'][$form_key] as $key => $size) {
+    $size = (int)_webform_multifile_get_files_array_value($size, $form_key);
     // Now let's check the file size (limit is set in KB).
     if ($size > $component['extra']['filtering']['size'] * 1024) {
       form_error($element, t("The file '%filename' is too large (%filesize KB). Please upload a file %maxsize KB or smaller.", array('%filename' => $_FILES['files']['name'][$form_key][$key], '%filesize' => (int) ($size/1024), '%maxsize' => $component['extra']['filtering']['size'])));
@@ -560,7 +563,7 @@ function _webform_validate_multifile(&$element, &$form_state) {
  * Implementation of _webform_submit_component().
  */
 function _webform_submit_multifile($component, $value) {
-  $old_fids = isset($value['_old_fids']) ? unserialize($value['_old_fids']) : NULL;
+  $old_fids = isset($value['_old_fids']) ? drupal_json_decode($value['_old_fids']) : NULL;
 
   if ($fids = $value['_fids']) {
     $files = webform_get_multifile($fids);
@@ -580,7 +583,7 @@ function _webform_submit_multifile($component, $value) {
   }
 
   if ($fids) {
-    return serialize($fids);
+    return drupal_json_encode($fids);
   }
 }
 
@@ -588,7 +591,7 @@ function _webform_submit_multifile($component, $value) {
  * Implementation of _webform_display_component().
  */
 function _webform_display_multifile($component, $value, $format = 'html') {
-  $fids = isset($value[0]) ? unserialize($value[0]) : NULL;
+  $fids = isset($value[0]) ? drupal_json_decode($value[0]) : NULL;
   return array(
      '#title' => $component['name'],
      '#value' => $fids ? webform_get_multifile($fids) : NULL,
@@ -629,7 +632,7 @@ function theme_webform_display_multifile($variables) {
  */
 function _webform_delete_multifile($component, $value) {
   // Delete a set of files on an individual submission.
-  $fids = isset($value[0]) ? unserialize($value[0]) : NULL;
+  $fids = isset($value[0]) ? drupal_json_decode($value[0]) : NULL;
   foreach (webform_get_multifile($fids) as $file) {
     file_delete($file);
   }
@@ -655,9 +658,9 @@ function _webform_analysis_multifile($component, $sids = array()) {
   $sizetotal = 0;
   $submissions = 0;
   $numfiles = 0;
-  
+
   while ($data = $result->fetchAssoc()) {
-    if ($fids = unserialize($data['data'])) {
+    if ($fids = drupal_json_decode($data['data'])) {
       $counter = 0;
       foreach (webform_get_multifile($fids) as $file) {
         if (isset($file->filesize)) {
@@ -685,7 +688,7 @@ function _webform_analysis_multifile($component, $sids = array()) {
  */
 function _webform_table_multifile($component, $value) {
   $links = array();
-  if ($fids = (isset($value[0]) ? unserialize($value[0]) : FALSE)) {
+  if ($fids = (isset($value[0]) ? drupal_json_decode($value[0]) : FALSE)) {
     foreach (webform_get_multifile($fids) as $file) {
       if (!empty($file->fid)) {
         $link = l(webform_multifile_name($file->uri), webform_multifile_url($file->uri));
@@ -717,7 +720,7 @@ function _webform_csv_headers_multifile($component, $export_options) {
 function _webform_csv_data_multifile($component, $export_options, $value) {
   $filenames = array();
   $sizes = array();
-  if ($fids = (isset($value[0]) ? unserialize($value[0]) : FALSE)) {
+  if ($fids = (isset($value[0]) ? drupal_json_decode($value[0]) : FALSE)) {
     foreach (webform_get_multifile($fids) as $file) {
       $filenames[] = webform_multifile_url($file->uri);
       $sizes[] = (int) ($file->filesize/1024);
@@ -737,7 +740,7 @@ function _webform_csv_data_multifile($component, $export_options, $value) {
  */
 function _webform_get_files_multifile($value) {
   $files = array();
-  if ($fids = (isset($value[0]) ? unserialize($value[0]) : FALSE)) {
+  if ($fids = (isset($value[0]) ? drupal_json_decode($value[0]) : FALSE)) {
     foreach (webform_get_multifile($fids) as $file) {
       $files[] = $file;
     }
@@ -796,28 +799,32 @@ function _webform_multifile_convert_files_array($form_key) {
   // file_save_upload expects the usual Forms API _FILES structure, which is
   // incompatible to jquery.MultiFile.js
   $keys = array();
+  $file_properties = array('type', 'tmp_name', 'error', 'size', 'orig_name');
   foreach ($_FILES['files']['type'][$form_key] as $key => $empty) {
     $newkey = $form_key . $key;
     if (!empty($_FILES['files']['orig_name'][$form_key][$key])) {
-      $_FILES['files']['name'][$newkey] = $_FILES['files']['orig_name'][$form_key][$key];
+      $_FILES['files']['name'][$newkey] = transliteration_clean_filename(_webform_multifile_get_files_array_value($_FILES['files']['orig_name'][$form_key][$key], $form_key));
     }
     else {
-      $_FILES['files']['name'][$newkey] = $_FILES['files']['name'][$form_key];
+      $_FILES['files']['name'][$newkey] = transliteration_clean_filename(_webform_multifile_get_files_array_value($_FILES['files']['name'][$form_key][$key], $form_key));
     }
-    $_FILES['files']['type'][$newkey] = $_FILES['files']['type'][$form_key][$key];
-    $_FILES['files']['tmp_name'][$newkey] = $_FILES['files']['tmp_name'][$form_key][$key];
-    $_FILES['files']['error'][$newkey] = $_FILES['files']['error'][$form_key][$key];
-    $_FILES['files']['size'][$newkey] = $_FILES['files']['size'][$form_key][$key];
-    $_FILES['files']['orig_name'][$newkey] = $_FILES['files']['orig_name'][$form_key][$key];
+    foreach ($file_properties as $file_property) {
+      $_FILES['files'][$file_property][$newkey] = _webform_multifile_get_files_array_value($_FILES['files'][$file_property][$form_key][$key], $form_key);
+    }
     $keys[] = $newkey;
   }
   unset($_FILES['files']['name'][$form_key]);
-  unset($_FILES['files']['type'][$form_key]);
-  unset($_FILES['files']['tmp_name'][$form_key]);
-  unset($_FILES['files']['error'][$form_key]);
-  unset($_FILES['files']['size'][$form_key]);
-  unset($_FILES['files']['orig_name'][$form_key]);
+  foreach ($file_properties as $file_property) {
+    unset($_FILES['files'][$file_property][$form_key]);
+  }
   return $keys;
+}
+
+/**
+ * Helper function.
+ */
+function _webform_multifile_get_files_array_value($value, $form_key) {
+  return (is_array($value) && isset($value[$form_key])) ? $value[$form_key] : $value;
 }
 
 /**
@@ -825,7 +832,7 @@ function _webform_multifile_convert_files_array($form_key) {
  */
 function _webform_attachments_multifile($component, $value) {
   static $files = array();
-  $fids = unserialize($value[0]);
+  $fids = drupal_json_decode($value[0]);
   $return_files = array();
   foreach ($fids as $fid) {
     if (!isset($files[$fid])) {
